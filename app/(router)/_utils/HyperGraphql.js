@@ -13,7 +13,7 @@ query MyQuery {
         name
         chapterNumber
         shortDesc
-        youtubeUrl
+        youtubeurl
       }
     }
     free
@@ -21,6 +21,7 @@ query MyQuery {
     sourceCode
     totalChapter
     name
+    slug
     tag
     banner {
       url
@@ -54,4 +55,32 @@ const getallbanner = async () => {
 return result
 }
 
-export default {getallCourseList, getallbanner}
+const getallcoursevideousingslug = async (courseId) => {
+
+  
+ const doc= gql`
+query MyQuery {
+  courseList(where: {slug: "`+courseId+`"}) {
+    author
+    name
+    banner {
+      url
+    }
+    chapter {
+      ... on Chapter {
+        id
+        name
+        youtubeurl
+      }
+    }
+    description
+    youtubeUrl
+  }
+}
+`
+   const result = await request(GOBOAL_API, doc)
+return result
+  
+}
+
+export default {getallCourseList, getallbanner,getallcoursevideousingslug}
