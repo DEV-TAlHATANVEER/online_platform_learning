@@ -1,8 +1,29 @@
 'use client'
-import { SignIn } from '@clerk/nextjs'
+import { SignIn, useUser } from '@clerk/nextjs'
 import React from 'react'
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 export default function Page() {
+   const { isSignedIn, isLoaded } = useUser()
+  const router = useRouter()
+
+  useEffect(() => {
+    // If user is already signed in, redirect to dashboard
+    if (isLoaded && isSignedIn) {
+      router.replace('/dashborad')
+    }
+  }, [isLoaded, isSignedIn, router])
+  if (!isLoaded || isSignedIn) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        <p className="text-gray-600 mt-4">Redirecting...</p>
+      </div>
+    </div>
+  )
+}
   return (
     <div className="bg-white dark:bg-gray-900 min-h-screen">
       <div className="flex flex-col lg:flex-row h-screen gap-4">
@@ -34,8 +55,18 @@ export default function Page() {
     
 
             <div className="justify-between   mt-3">
-              <SignIn
-              />
+        <SignIn 
+          afterSignInUrl="/sign-in"
+          signUpUrl="/sign-in"
+          appearance={{
+            elements: {
+              rootBox: "mx-auto",
+              card: "shadow-2xl border-2 border-gray-100",
+              headerTitle: "hidden",
+              headerSubtitle: "hidden",
+            },
+          }}
+        />
             </div>
           </div>
         </div>

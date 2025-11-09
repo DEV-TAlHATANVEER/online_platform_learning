@@ -1,87 +1,168 @@
 'use client'
 import React, { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import HyperGraphql from '@/app/(router)/_utils/HyperGraphql'
-import { PlayCircle, Play } from 'lucide-react' // using lucide-react icons
+import { useUser } from '@clerk/nextjs'
+import { Play, Lock, ArrowRight } from 'lucide-react'
 
-function ChapterList({ onSelectChapter }) {
+function ChapterList() {
   const params = useParams()
+  const router = useRouter()
+  const { user, isLoaded } = useUser()
   const [chapters, setChapters] = useState([])
+  const [enrollment, setEnrollment] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [activeChapter, setActiveChapter] = useState(null)
 
-  useEffect(() => {
-    const fetchChapters = async () => {
-      if (!params?.courseId) return
-      try {
-        const resp = await HyperGraphql.getallcoursevideousingslug(params.courseId)
-        setChapters(resp.courseList?.chapter || [])
-        setActiveChapter(resp.courseList?.chapter?.[0] || null) // set first as default
-        onSelectChapter?.(resp.courseList?.chapter?.[0]) // send to parent
-      } catch (error) {
-        console.error('Error fetching chapters:', error)
-      } finally {
-        setLoading(false)
+  // Function to fetch data
+  const fetchData = async () => {
+    if (!params?.courseId) return
+
+    try {
+      const resp = await HyperGraphql.getallcoursevideousingslug(params.courseId)
+      setChapters(resp.courseList?.chapter || [])
+
+      if (isLoaded && user) {
+        const enrollmentData = await HyperGraphql.checkUserEnrollment(
+          user.primaryEmailAddress.emailAddress,
+          params.courseId
+        )
+        setEnrollment(enrollmentData)
       }
+    } catch (error) {
+      console.error('Error fetching chapters:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Initial fetch
+  useEffect(() => {
+    fetchData()
+  }, [params, isLoaded, user])
+
+  // Listen for enrollment events (custom events from EnrollmentButton)
+  useEffect(() => {
+    const handleEnrollmentUpdate = () => {
+      console.log('📢 Enrollment event detected, refreshing chapter list...')
+      fetchData()
     }
 
-    fetchChapters()
-  }, [params])
+    window.addEventListener('enrollment-updated', handleEnrollmentUpdate)
 
-  const handleSelectChapter = (chapter) => {
-    setActiveChapter(chapter)
-    onSelectChapter?.(chapter) // callback to parent (to update video)
+    return () => {
+      window.removeEventListener('enrollment-updated', handleEnrollmentUpdate)
+    }
+  }, [])
+
+  // Also periodically check enrollment status if user is logged in but not enrolled
+  useEffect(() => {
+    if (isLoaded && user && !enrollment && !loading) {
+      const interval = setInterval(() => {
+        console.log('🔄 Periodic check for enrollment...')
+        fetchData()
+      }, 5000) // Check every 5 seconds
+
+      return () => clearInterval(interval)
+    }
+  }, [isLoaded, user, enrollment, loading])
+
+  const handleStartCourse = () => {
+    if (enrollment) {
+      router.push(`/watch-course/${params.courseId}`)
+    }
   }
 
   if (loading) {
     return (
-      <div className="animate-pulse space-y-3 p-4 bg-white rounded-xl shadow">
-        <div className="h-6 bg-gray-300 rounded w-2/3"></div>
-        <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-        <div className="h-4 bg-gray-300 rounded w-2/3"></div>
-        <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+      <div className="space-y-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-20 bg-gray-200 rounded-lg animate-pulse"></div>
+        ))}
       </div>
     )
   }
 
   return (
-    <div className="p-4 bg-white rounded-xl shadow-md border border-gray-100 ">
-      <h2 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2">
-        📘 Course Contents
-      </h2>
+    <div className="bg-white rounded-xl p-4 shadow-md">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+          <Play className="w-5 h-5 text-blue-600" />
+          Course Content ({chapters.length})
+        </h2>
+      </div>
 
-      {chapters.length > 0 ? (
-        <ul className="space-y-2">
-          {chapters.map((chapter, index) => {
-            const isActive = activeChapter?.id === chapter.id
-            return (
-              <li
-                key={chapter.id || index}
-                onClick={() => handleSelectChapter(chapter)}
-                className={`p-3 border rounded-lg cursor-pointer flex items-center gap-3 transition 
-                  ${isActive ? 'bg-blue-50 border-blue-400' : 'hover:bg-gray-50 border-gray-200'}`}
-              >
-                {isActive ? (
-                  <PlayCircle className="w-5 h-5 text-blue-500" />
+      {/* Start Learning Button - Prominent if enrolled */}
+      {enrollment && (
+        <button
+          onClick={handleStartCourse}
+          className="w-full mb-4 px-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold text-base hover:shadow-xl transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 group"
+        >
+          <Play className="w-5 h-5 group-hover:animate-pulse" />
+          <span>Start Learning Now</span>
+          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+        </button>
+      )}
+      
+      <div className="space-y-2">
+        {chapters.map((chapter, index) => (
+          <div
+            key={chapter.id}
+            className={`
+              p-4 rounded-lg border-2 transition-all duration-300
+              ${enrollment 
+                ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 cursor-pointer' 
+                : 'border-gray-200 bg-gray-50'
+              }
+            `}
+            onClick={() => enrollment && handleStartCourse()}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`
+                flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm flex-shrink-0
+                ${enrollment 
+                  ? 'bg-blue-100 text-blue-600' 
+                  : 'bg-gray-200 text-gray-400'
+                }
+              `}>
+                {enrollment ? (
+                  <span>{chapter.chapterNumber || index + 1}</span>
                 ) : (
-                  <Play className="w-4 h-4 text-gray-400" />
+                  <Lock className="w-4 h-4" />
                 )}
-                <div>
-                  <h3
-                    className={`text-[15px] font-medium leading-tight ${
-                      isActive ? 'text-blue-600' : 'text-gray-800'
-                    }`}
-                  >
-                    {index + 1}. {chapter.name}
-                  </h3>
-                 
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      ) : (
-        <p className="text-gray-500 text-sm">No chapters available for this course.</p>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <h3 className={`
+                  font-semibold text-sm mb-1 line-clamp-2
+                  ${enrollment ? 'text-gray-800' : 'text-gray-500'}
+                `}>
+                  {chapter.name}
+                </h3>
+                {chapter.shortDesc && (
+                  <p className="text-xs text-gray-500 line-clamp-2">
+                    {chapter.shortDesc}
+                  </p>
+                )}
+              </div>
+
+              {enrollment && (
+                <Play className="w-5 h-5 text-blue-600 flex-shrink-0" />
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {!enrollment && chapters.length > 0 && (
+        <div className="mt-4 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200 rounded-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <Lock className="w-5 h-5 text-yellow-700" />
+            <h3 className="font-bold text-yellow-800">Course Locked</h3>
+          </div>
+          <p className="text-sm text-yellow-700">
+            Enroll now to unlock all {chapters.length} chapters and start your learning journey!
+          </p>
+        </div>
       )}
     </div>
   )
