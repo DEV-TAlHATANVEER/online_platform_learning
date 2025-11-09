@@ -56,7 +56,8 @@ export default function Page() {
 
             <div className="justify-between   mt-3">
         <SignIn 
-          afterSignInUrl="/sign-in"
+            afterSignInUrl="/sign-in"
+            
           signUpUrl="/sign-in"
           appearance={{
             elements: {
